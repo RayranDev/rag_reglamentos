@@ -2,8 +2,10 @@ import os
 import json
 import time
 import asyncio
+import tempfile
+import base64
 from pathlib import Path
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -14,8 +16,12 @@ sys.path.insert(0, str(BASE_DIR / "src"))
 from classifier import clasificar_pregunta
 from retriever import buscar_chunks_relevantes, formatear_contexto
 from llm import generar_respuesta, respuesta_no_encontrada
+from model_manager import VoiceManager
 
 app = FastAPI(title="RAG Plastitec API")
+
+# Gestor de modelos (VRAM, Whisper, TTS)
+voice_manager = VoiceManager()
 
 # Semáforo para serializar peticiones a Ollama y evitar OOM
 ollama_semaphore = asyncio.Semaphore(1)
@@ -166,6 +172,87 @@ async def ask_endpoint(req: AskRequest, request: Request):
         "confianza": conf,
         "tiempo_total": round(tiempo_total, 2),
         "bloqueado": False
+    }
+
+@app.post("/ask/voice")
+async def ask_voice_endpoint(audio: UploadFile = File(...)):
+    inicio = time.time()
+    
+    # Guardar audio temporal
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as tmp:
+        content = await audio.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        # 1. Descargar LLM y transcribir
+        await asyncio.to_thread(voice_manager.descargar_llm)
+        pregunta = await asyncio.to_thread(voice_manager.transcribir_audio, tmp_path)
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+            
+    if not pregunta or len(pregunta.strip()) < 2:
+        raise HTTPException(status_code=400, detail="No se entendió el audio o está vacío.")
+        
+    # 2. Flujo RAG estándar
+    check_faq_match(pregunta)
+    clasificacion = clasificar_pregunta(pregunta)
+    
+    bloqueado = False
+    if clasificacion["resultado"] == "SENSIBLE":
+        resp_text = "Para este tipo de consultas, por favor dirígete al área de Recursos Humanos, donde podrán brindarte una orientación más personalizada."
+        fte, conf = "Políticas RRHH", "alta"
+        bloqueado = True
+    else:
+        chunks = buscar_chunks_relevantes(pregunta)
+        if not chunks:
+            resp_dict = respuesta_no_encontrada()
+            resp_text, fte, conf = extract_fuente_confianza(resp_dict["respuesta"])
+        else:
+            contexto = formatear_contexto(chunks)
+            async with ollama_semaphore:
+                try:
+                    resp_dict = await asyncio.wait_for(
+                        asyncio.to_thread(generar_respuesta, contexto, pregunta), 
+                        timeout=30.0
+                    )
+                    resp_text, fte, conf = extract_fuente_confianza(resp_dict["respuesta"])
+                except asyncio.TimeoutError:
+                    raise HTTPException(status_code=504, detail="El modelo LLM no respondió a tiempo.")
+
+    # 3. Generar TTS
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
+        wav_path = tmp_wav.name
+        
+    try:
+        await asyncio.to_thread(voice_manager.generar_audio_tts, resp_text, wav_path)
+        with open(wav_path, "rb") as f:
+            audio_data = f.read()
+        audio_b64 = base64.b64encode(audio_data).decode("utf-8")
+    finally:
+        if os.path.exists(wav_path):
+            os.unlink(wav_path)
+            
+    tiempo_total = time.time() - inicio
+    
+    log_query({
+        "timestamp": time.time(),
+        "pregunta": pregunta,
+        "confianza": conf,
+        "tiempo_total": round(tiempo_total, 2),
+        "bloqueado": bloqueado,
+        "tipo": "voice"
+    })
+
+    return {
+        "transcripcion": pregunta,
+        "respuesta": resp_text,
+        "fuente": fte,
+        "confianza": conf,
+        "tiempo_total": round(tiempo_total, 2),
+        "bloqueado": bloqueado,
+        "audio_b64": audio_b64
     }
 
 @app.get("/faq")

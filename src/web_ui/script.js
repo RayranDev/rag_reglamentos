@@ -21,10 +21,22 @@ const chatInput    = document.getElementById('chat-input');
 const sendBtn      = document.getElementById('send-btn');
 const faqContainer = document.getElementById('faq-container');
 
+// Elementos de Voz
+const voiceBtn    = document.getElementById('voice-btn');
+const waveLeft    = document.getElementById('wave-left');
+const waveRight   = document.getElementById('wave-right');
+const voiceStatus = document.getElementById('voice-status');
+const voiceLabel  = document.getElementById('voice-label');
+
+let mediaRecorder;
+let audioChunks = [];
+let isRecording = false;
+
 // ── Init ──────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     loadFAQs();
     chatForm.addEventListener('submit', handleSubmit);
+    voiceBtn.addEventListener('click', toggleRecording);
 });
 
 // ── FAQ Loading ───────────────────────────────────────────────────────
@@ -73,6 +85,8 @@ function renderFAQs(faqs) {
 // ── Chat Form ─────────────────────────────────────────────────────────
 function handleSubmit(e) {
     e.preventDefault();
+    if (isRecording) stopRecording(); // Detener si envía mientras graba
+    
     const text = chatInput.value.trim();
     if (!text) return;
 
@@ -118,6 +132,112 @@ async function sendToAPI(pregunta, skipFaqIncrement = false) {
         removeEl(typingId);
         sendBtn.disabled = false;
         appendMessage('No me pude conectar con el servidor. Verifica que esté activo.', 'assistant');
+    }
+}
+
+// ── Voice Recording ───────────────────────────────────────────────────
+async function toggleRecording() {
+    if (isRecording) {
+        stopRecording();
+    } else {
+        startRecording();
+    }
+}
+
+async function startRecording() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = e => {
+            if (e.data.size > 0) audioChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            stream.getTracks().forEach(t => t.stop());
+            await sendAudioToAPI(audioBlob);
+        };
+
+        mediaRecorder.start();
+        isRecording = true;
+        
+        // UI updates
+        waveLeft.classList.remove('disabled');
+        waveRight.classList.remove('disabled');
+        voiceStatus.classList.remove('disabled');
+        voiceLabel.textContent = "Escuchando...";
+        
+    } catch (e) {
+        console.error("Error acceso microfono:", e);
+        alert("No se pudo acceder al micrófono. Por favor permite el acceso.");
+    }
+}
+
+function stopRecording() {
+    if (mediaRecorder && isRecording) {
+        mediaRecorder.stop();
+        isRecording = false;
+        
+        // UI updates
+        waveLeft.classList.add('disabled');
+        waveRight.classList.add('disabled');
+        voiceStatus.classList.add('disabled');
+        voiceLabel.textContent = "Procesando...";
+    }
+}
+
+async function sendAudioToAPI(audioBlob) {
+    sendBtn.disabled = true;
+    voiceBtn.classList.add('disabled');
+    const typingId = appendTyping();
+
+    const formData = new FormData();
+    formData.append("audio", audioBlob, "audio.webm");
+
+    try {
+        const res = await fetch(`${API_BASE}/ask/voice`, {
+            method: 'POST',
+            body: formData
+        });
+
+        removeEl(typingId);
+        sendBtn.disabled = false;
+        voiceBtn.classList.remove('disabled');
+        voiceLabel.textContent = "Micrófono listo";
+
+        if (!res.ok) {
+            appendMessage('Hubo un error al procesar el audio. Inténtalo de nuevo.', 'assistant');
+            return;
+        }
+
+        const data = await res.json();
+
+        // Mostrar transcripción
+        appendMessage(data.transcripcion, 'user');
+
+        let metaLine = '';
+        if (data.fuente && data.fuente !== 'No aplica') {
+            metaLine = `Fuente: ${data.fuente} | Confianza: ${data.confianza}`;
+        }
+        appendMessage(data.respuesta, 'assistant', metaLine);
+        
+        // Reproducir audio base64
+        if (data.audio_b64) {
+            const audio = new Audio("data:audio/wav;base64," + data.audio_b64);
+            audio.play().catch(e => console.error("Error reproduciendo audio:", e));
+        }
+
+        loadFAQs();
+
+    } catch (err) {
+        console.error('Error en /ask/voice:', err);
+        removeEl(typingId);
+        sendBtn.disabled = false;
+        voiceBtn.classList.remove('disabled');
+        voiceLabel.textContent = "Micrófono listo";
+        appendMessage('No me pude conectar con el servidor para procesar el audio.', 'assistant');
     }
 }
 
