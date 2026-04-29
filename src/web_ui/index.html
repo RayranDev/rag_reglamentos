@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tu Asistente de RRHH - Oficial</title>
+    <meta name="description" content="Sistema de consulta de reglamentos internos y BPM de Plastitec mediante IA local.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-shell">
+
+        <!-- ── HEADER ─────────────────────────────────────────── -->
+        <header class="app-header">
+            <div class="header-logo">
+                <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                    <circle cx="18" cy="18" r="16" fill="#1E3A8A" opacity="0.15"/>
+                    <path d="M10 18 Q18 8 26 18 Q18 28 10 18Z" fill="#1E3A8A"/>
+                    <circle cx="18" cy="18" r="4" fill="#f97316"/>
+                </svg>
+            </div>
+            <h1 class="header-title">Tu Asistente de RRHH - Oficial</h1>
+        </header>
+
+        <!-- ── MAIN LAYOUT ────────────────────────────────────── -->
+        <div class="main-layout">
+
+            <!-- ── LEFT: CHAT COLUMN ───────────────────────────── -->
+            <aside class="chat-column">
+                <!-- Chat window -->
+                <div class="chat-window" id="chat-window">
+                    <div class="message assistant">
+                        <div class="bubble">
+                            Hola, ¿en qué te puedo ayudar hoy con el Reglamento Interno o BPM?
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Voice area -->
+                <div class="voice-area">
+                    <div class="voice-status disabled" id="voice-status">
+                        <span class="voice-icon">🔊</span>
+                        <span id="voice-label">Escuchando...</span>
+                    </div>
+
+                    <div class="mic-wrapper">
+                        <div class="sound-wave left disabled" id="wave-left">
+                            <span></span><span></span><span></span><span></span>
+                        </div>
+                        <button id="voice-btn" class="mic-btn disabled" title="Próximamente" disabled>
+                            <svg width="30" height="30" viewBox="0 0 24 24" fill="white">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zm0 2a1 1 0 0 1 1 1v8a1 1 0 0 1-2 0V4a1 1 0 0 1 1-1zm-7 8a7 7 0 0 0 14 0h-2a5 5 0 0 1-10 0H5zm7 7v3h-2v-3h2z"/>
+                            </svg>
+                        </button>
+                        <div class="sound-wave right disabled" id="wave-right">
+                            <span></span><span></span><span></span><span></span>
+                        </div>
+                    </div>
+
+                    <p class="mic-label">¡Toca para hablar!</p>
+
+                    <!-- Text input fallback -->
+                    <form id="chat-form" class="chat-form">
+                        <input type="text" id="chat-input" placeholder="O escribe tu pregunta aquí..." autocomplete="off">
+                        <button type="submit" id="send-btn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+                                <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+            </aside>
+
+            <!-- ── RIGHT: FAQ COLUMN ───────────────────────────── -->
+            <section class="faq-column">
+                <h2 class="faq-title">Top 5 Preguntas Frecuentes (Respuestas Visuales)</h2>
+                <div class="faq-grid" id="faq-container">
+                    <!-- FAQ cards will be injected here -->
+                    <div class="faq-skeleton"></div>
+                    <div class="faq-skeleton"></div>
+                    <div class="faq-skeleton"></div>
+                    <div class="faq-skeleton"></div>
+                    <div class="faq-skeleton"></div>
+                </div>
+            </section>
+
+        </div><!-- /main-layout -->
+
+        <!-- ── FOOTER ─────────────────────────────────────────── -->
+        <footer class="app-footer">
+            <span>Sistema de Consulta y Respuestas de RRHH | Procesamiento Local Offline con Llama 3 | Interfaz Web Adaptable (Tablet/Móvil)</span>
+            <div class="footer-badge">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
+                </svg>
+                Red Local/Offline
+            </div>
+        </footer>
+
+    </div><!-- /app-shell -->
+
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+# RAG Reglamentos — Dependencias
+# Instalar con: pip install -r requirements.txt
+
+# Lectura de PDFs
+pymupdf==1.24.3
+
+# Cliente Ollama (LLM + embeddings local)
+ollama==0.2.1
+
+# Base de datos vectorial
+qdrant-client==1.9.1
+
+# Variables de entorno
+python-dotenv==1.0.1
+
+# Barra de progreso
+tqdm==4.66.4
+
+# Métricas de CPU/RAM durante evaluación
+psutil==5.9.8
+
+# Chunking de texto
+langchain-text-splitters==0.2.2
+tiktoken==0.7.0
