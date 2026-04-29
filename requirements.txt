@@ -22,3 +22,13 @@ psutil==5.9.8
 # Chunking de texto
 langchain-text-splitters==0.2.2
 tiktoken==0.7.0
+
+# API Web (Fase 2)
+fastapi
+uvicorn
+python-multipart
+
+# Voz y TTS (Fase 3)
+faster-whisper
+pyttsx3
+torch

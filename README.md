@@ -1,186 +1,142 @@
-# RAG Reglamentos Plastitec
+# RAG Plastitec - Asistente IA Offline de Recursos Humanos
 
-Sistema RAG local para consultar el Reglamento Interno de Trabajo (RIT) y
-documentos corporativos/BPM de Plastitec.
+Sistema RAG (Retrieval-Augmented Generation) especializado en responder consultas sobre reglamentos internos y políticas de Recursos Humanos de la empresa Plastitec. Diseñado para operar **100% de manera local (offline)** con el fin de proteger la privacidad de los datos, incluye además capacidades de reconocimiento y síntesis de voz gestionando inteligentemente los recursos de hardware.
 
-Estado documentado: 2026-04-28.
+## 🚀 Características Principales
 
-## Estado Actual
+*   **Búsqueda Semántica Rápida:** Utiliza bases de datos vectoriales para encontrar el contexto adecuado independientemente de si el usuario usa sinónimos.
+*   **Modelo de Lenguaje Local:** Emplea Llama 3 (a través de Ollama) garantizando la privacidad absoluta.
+*   **Filtro de Seguridad (Clasificador):** Intercepta preguntas sensibles (acoso, violencia, quejas graves) antes de que lleguen al modelo y las redirige al personal de Recursos Humanos.
+*   **Voz a Texto (STT) y Texto a Voz (TTS):** Permite hacer preguntas hablando por el micrófono y responde con audio, todo en el mismo servidor local sin usar APIs de terceros (Whisper + pyttsx3).
+*   **Gestión Inteligente de VRAM:** Descarga el modelo de lenguaje de la tarjeta gráfica automáticamente al usar el modelo de reconocimiento de voz para evitar colapsos por falta de memoria (Out of Memory).
+*   **Control de Concurrencia:** Semáforo integrado para serializar peticiones, evitando cuellos de botella en equipos de bajos recursos.
+*   **Interfaz Web Responsiva:** Interfaz estilo chat de uso amigable con sugerencias interactivas de las "Preguntas Frecuentes" más populares.
 
-El sistema esta funcionando con ingesta completa, busqueda hibrida, evaluacion
-masiva y reporte de consumo de maquina.
+---
 
-Ultima evaluacion completa:
+## 🛠️ Stack Tecnológico
 
-- Archivo: `evaluation/resultados_RAG_20260428_091807.csv`
-- Resumen maquina: `evaluation/resumen_maquina_20260428_091807.json`
-- Preguntas evaluadas: `153`
-- Resultados: `149 alta`, `2 media`, `2 baja`
-- Calidad alta: `97.4%`
-- Calidad alta + media: `98.7%`
-- Tiempo promedio: `3.35s` por pregunta
-- Tiempo maximo: `9.17s`
+*   **Backend:** Python 3.10+ / FastAPI / Uvicorn
+*   **Base de Datos Vectorial:** Qdrant (Local en disco)
+*   **Modelos de Embeddings:** HuggingFace (`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`)
+*   **LLM (Generación):** Llama 3 (8B) gestionado por Ollama
+*   **STT (Transcripción):** `faster-whisper` (modelo: *small*)
+*   **TTS (Síntesis de voz):** `pyttsx3`
+*   **Frontend:** HTML5, CSS3, Vanilla JavaScript
 
-Documentacion detallada:
+---
 
-- [Estado tecnico del RAG](docs/estado_tecnico_rag.md)
+## 📋 Requisitos Previos
 
-## Arquitectura
+1.  **Hardware:**
+    *   Procesador moderno multicore.
+    *   RAM del sistema: Mínimo 16 GB.
+    *   **GPU VRAM:** Mínimo 6 GB (NVIDIA preferible) para evitar latencias altas y cuellos de botella.
+2.  **Software:**
+    *   [Python 3.10+](https://www.python.org/downloads/)
+    *   [Ollama](https://ollama.com/) instalado y ejecutándose en segundo plano (`http://localhost:11434`).
 
-Flujo principal:
+---
+
+## ⚙️ Instalación y Configuración
+
+1.  **Clonar el repositorio y entrar al directorio:**
+    ```bash
+    git clone <url-del-repo>
+    cd rag_reglamentos
+    ```
+
+2.  **Crear y activar un entorno virtual (recomendado):**
+    ```bash
+    python -m venv .venv
+    # Windows
+    .venv\Scripts\activate
+    # Linux/Mac
+    source .venv/bin/activate
+    ```
+
+3.  **Instalar las dependencias:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+4.  **Descargar el modelo en Ollama:**
+    ```bash
+    ollama run llama3
+    ```
+
+---
+
+## 🏃‍♂️ Cómo Usar el Sistema
+
+### 1. Ingesta de Documentos (Base de conocimiento)
+Antes de poder preguntar, necesitas alimentar el sistema con los reglamentos o manuales de la empresa:
+1. Coloca tus archivos en la carpeta `data/`. El sistema soporta una gran variedad de formatos nativamente (`.pdf`, `.txt`, `.md`, entre otros).
+2. Ejecuta el script de ingesta:
+   ```bash
+   python src/ingest.py
+   ```
+*Nota: Este proceso creará fragmentos inteligentes (chunks) respetando los artículos legales y construirá la base de datos vectorial en la carpeta `vectorstore/`.*
+
+### 2. Levantar el Servidor Completo (API + Web UI)
+Para ejecutar la aplicación con la interfaz web y los endpoints de voz:
+```bash
+python src/main.py --server
+```
+* Accede a la interfaz web en tu navegador: `http://localhost:8000`
+* Accede a la documentación automática de la API en: `http://localhost:8000/docs`
+
+### 3. Modo Consola Clásico (Para pruebas rápidas)
+Si solo deseas interactuar en la terminal sin levantar el servidor web:
+```bash
+python src/main.py
+```
+
+---
+
+## 📡 API Endpoints
+
+El sistema expone las siguientes rutas en el puerto `8000`:
+
+*   `POST /ask`: Recibe `{ "pregunta": "texto...", "skip_faq_increment": false }`. Devuelve la respuesta RAG estructurada y fuentes.
+*   `POST /ask/voice`: Recibe un archivo `UploadFile` (audio en `.webm` u otro formato). Devuelve la respuesta en texto y un string en **Base64** con el archivo `.wav` de la voz generada.
+*   `GET /faq`: Retorna el top 5 de las preguntas más frecuentes almacenadas en `data/faqs.json`.
+*   `POST /faq/increment`: Incrementa la popularidad de una pregunta frecuente al hacerle clic.
+*   `GET /`: Sirve la interfaz web estática (`index.html`).
+
+---
+
+## 🧠 Gestión de Hardware (VRAM Swap)
+Al invocar el endpoint `/ask/voice`, la clase `VoiceManager` realiza una estrategia de *"Swap"* para cuidar tu GPU:
+1. Pide a Ollama que descargue Llama 3 (`keep_alive=0`).
+2. Carga `faster-whisper` a la VRAM.
+3. Transcribe el audio del usuario.
+4. Elimina `faster-whisper` de la VRAM y vacía el caché (`torch.cuda.empty_cache()`).
+5. Ollama recarga Llama 3 automáticamente al generar la respuesta.
+
+Esta operación dura ~2 segundos pero asegura que el equipo no crashee por falta de VRAM.
+
+---
+
+## 🗂️ Estructura de Directorios
 
 ```text
-PDFs -> texto procesado -> chunks por articulo -> embeddings Ollama
-     -> Qdrant -> retriever hibrido -> LLM -> respuesta con fuente
+rag_reglamentos/
+├── data/                  # Docs Markdown originales y faqs.json
+├── chunks/                # Fragmentos JSON extraídos en la ingesta
+├── vectorstore/           # Base de datos vectorial de Qdrant (Generada)
+├── src/                   # Código fuente de la app
+│   ├── api.py             # Rutas FastAPI y orquestación del servidor
+│   ├── main.py            # Punto de entrada (Consola o Servidor)
+│   ├── model_manager.py   # Gestor de modelos (Voz, VRAM, Ollama)
+│   ├── chunker.py         # Lógica de partición inteligente de MD
+│   ├── classifier.py      # Lógica del filtro de seguridad
+│   ├── llm.py             # Conexión con Ollama y Prompts
+│   ├── retriever.py       # Lógica de búsqueda vectorial en Qdrant
+│   └── web_ui/            # Interfaz gráfica estática (HTML/CSS/JS)
+├── prompt/                # Prompts utilizados para el sistema
+├── evaluar_api.py         # Batería de pruebas automatizadas contra la API
+├── evaluar_rit.py         # Framework de evaluación RAG Offline
+├── requirements.txt       # Dependencias del backend
+└── README.md              # Este archivo
 ```
-
-Componentes principales:
-
-- `ingest.py`: procesa PDFs, genera chunks, crea embeddings e indexa en Qdrant.
-- `src/loader.py`: extrae texto de PDFs y detecta tipo de documento.
-- `src/chunker.py`: divide documentos, priorizando articulos normativos.
-- `src/embeddings.py`: genera embeddings con Ollama.
-- `src/vector_db.py`: administra coleccion, indices e insercion en Qdrant.
-- `src/retriever.py`: busqueda hibrida con embeddings, filtros y keywords curadas.
-- `src/classifier.py`: bloquea consultas sensibles antes de enviarlas al RAG.
-- `src/llm.py`: genera respuestas usando solo el contexto recuperado.
-- `src/main.py`: interfaz de consulta por consola.
-- `evaluar_rit.py`: evaluacion masiva y reporte de recursos.
-
-## Requisitos
-
-Requisitos de software:
-
-- Python 3.12
-- Docker
-- Ollama local
-- Qdrant por Docker Compose
-- Modelo LLM: `llama3`
-- Modelo embeddings: `mxbai-embed-large`
-
-Requisitos de maquina recomendados para este volumen:
-
-- RAM: `16 GB` minimo recomendado, `32 GB` ideal
-- GPU: `8 GB VRAM` recomendado para tiempos similares a la evaluacion
-- Disco libre: `15 GB` minimo practico, `20 GB+` recomendado
-- SSD recomendado
-
-Modelos usados en la corrida:
-
-- `llama3:latest`: `4.7 GB`
-- `mxbai-embed-large:latest`: `669 MB`
-
-## Configuracion
-
-Variables principales en `.env`:
-
-```env
-LLM_MODEL=llama3
-EMBED_MODEL=mxbai-embed-large
-QDRANT_URL=http://localhost:6333
-COLLECTION_NAME=reglamentos
-TOP_K=8
-SCORE_THRESHOLD=0.60
-```
-
-Instalar dependencias:
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-```
-
-Levantar Qdrant:
-
-```powershell
-docker-compose up -d
-```
-
-Verificar entorno:
-
-```powershell
-.\.venv\Scripts\python.exe test_env.py
-```
-
-## Ingesta
-
-Coloca los PDFs en `data/` y ejecuta:
-
-```powershell
-.\.venv\Scripts\python.exe ingest.py
-```
-
-La ingesta:
-
-- Extrae texto a `processed/`.
-- Genera chunks en `chunks/`.
-- Crea embeddings con Ollama.
-- Crea la coleccion `reglamentos` en Qdrant.
-- Crea indices de payload.
-- Inserta vectores con metadata de fuente, pagina, articulo y tipo de documento.
-
-Estado actual de ingesta:
-
-- PDFs procesados: `10`
-- Chunks totales: `429`
-- Vectores en Qdrant: `429`
-- Chunks del RIT: `354`
-- Chunks BPM: `75`
-
-## Consulta
-
-```powershell
-.\.venv\Scripts\python.exe src\main.py
-```
-
-El flujo de consulta:
-
-1. Clasifica la pregunta y bloquea temas sensibles.
-2. Recupera chunks relevantes con busqueda semantica + keywords.
-3. Formatea contexto con fuente, pagina y articulo.
-4. Genera respuesta con el LLM.
-5. Devuelve respuesta, fuente y confianza.
-
-## Evaluacion
-
-Ejecutar evaluacion completa:
-
-```powershell
-.\.venv\Scripts\python.exe evaluar_rit.py
-```
-
-Ejecutar corrida corta:
-
-```powershell
-$env:EVAL_LIMIT='5'
-.\.venv\Scripts\python.exe evaluar_rit.py
-Remove-Item Env:\EVAL_LIMIT
-```
-
-La evaluacion genera:
-
-- `evaluation/resultados_RAG_*.csv`: respuesta, confianza, chunks usados,
-  tiempos por etapa y metricas por pregunta.
-- `evaluation/resumen_maquina_*.json`: tiempos agregados, CPU, RAM, disco,
-  GPU/VRAM y almacenamiento usado.
-
-## Pruebas Utiles
-
-```powershell
-.\.venv\Scripts\python.exe test_classifier.py
-.\.venv\Scripts\python.exe test_retriever_quality.py
-.\.venv\Scripts\python.exe test_busqueda.py
-.\.venv\Scripts\python.exe -m compileall src ingest.py evaluar_rit.py
-```
-
-## Pendientes Conocidos
-
-La ultima evaluacion dejo 4 casos no perfectos:
-
-- Media: uso de celular personal durante jornada.
-- Media: jefe pidiendo trabajar mas horas que lo permitido por ley.
-- Baja: cierre intempestivo de la empresa.
-- Baja: beneficios generales de trabajar en Plastitec segun el RIT.
-
-Estos pendientes parecen puntuales y no estructurales. Dos dependen de reglas
-del RIT que se pueden reforzar en retrieval; los otros dos son preguntas mas
-ambiguas o con cobertura documental menos directa.
